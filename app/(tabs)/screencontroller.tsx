@@ -6,24 +6,22 @@ const { width } = Dimensions.get('window');
 
 // This is a placeholder for your Raspberry Pi's IP address and port.
 // You will need to change this once your backend is running.
-const RPI_API_URL = 'http://YOUR_RPI_IP_ADDRESS:5000/api';
+const RPI_API_URL = 'https://ydestructooo.pythonanywhere.com/';
 
-// This function will handle sending commands to the bot.
+// This function will handle sending commands to the bot. 
 // It's a placeholder for now, but shows how you would use the fetch API.
 const sendCommand = async (command: string) => {
   console.log(`Sending command: ${command}`);
   try {
-    // We use a simple fetch call to send the command to the API endpoint.
-    // In a real scenario, you would send more data like speed or duration.
-    const response = await fetch(`${RPI_API_URL}/control/${command}`, {
+    const response = await fetch(`${RPI_API_URL}/control`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ command }),   // ✅ send JSON
     });
 
     if (!response.ok) {
-      // Use Alert to show a simple error message to the user
       Alert.alert('Error', `Failed to send command. Status: ${response.status}`);
       return;
     }
@@ -37,6 +35,7 @@ const sendCommand = async (command: string) => {
   }
 };
 
+
 export default function ScreenController() {
   const [isProbeScanning, setIsProbeScanning] = useState(false);
 
@@ -45,7 +44,7 @@ export default function ScreenController() {
     console.log('Initiating soil scan...');
     // In a real scenario, you would send a command to the bot to trigger the NPK probe.
     sendCommand('scan_soil');
-    // For now, we simulate the scan with a timer
+    // For now, we simulate the scan with a timer 
     setTimeout(() => {
       console.log('Soil scan complete.');
       setIsProbeScanning(false);
@@ -217,7 +216,7 @@ const styles = StyleSheet.create({
   },
   probeButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 16, 
     fontWeight: 'bold',
   },
   probeButtonScanning: {
