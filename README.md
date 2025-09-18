@@ -1,8 +1,3 @@
-Got it — I'll make a clean **README** for your project that focuses on the **mobile app + bot workflow** only, no Flask/server setup details, no project structure.
-
-Here’s the updated README:
-
----
 
 # 🌱 NPK Soil Analysis & Fertilizer Recommendation App
 
