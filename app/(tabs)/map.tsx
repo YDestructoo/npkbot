@@ -9,11 +9,11 @@ import {
   Animated,
   StatusBar,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import MapView, { Marker, PROVIDER_GOOGLE, Circle } from "react-native-maps";
 
-const RPI_API_URL = "https://ydestructooo.pythonanywhere.com";
-
 const MapScreen: React.FC = () => {
+  const [serverIP, setServerIP] = useState<string | null>(null);
   const [botLocation, setBotLocation] = useState({
     latitude: 37.78825,
     longitude: -122.4324,
@@ -28,31 +28,38 @@ const MapScreen: React.FC = () => {
   const mapRef = useRef<MapView>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Pulse animation
+  // Load Server IP on start
+  useEffect(() => {
+    const loadIP = async () => {
+      const savedIP = await AsyncStorage.getItem("server_ip");
+      if (savedIP) {
+        setServerIP(savedIP);
+      } else {
+        Alert.alert("No Server IP", "Please set the server IP in settings first.");
+      }
+    };
+    loadIP();
+  }, []);
+
+  // Pulse animation for marker
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
+        Animated.timing(pulseAnim, { toValue: 1.2, duration: 1000, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
       ])
     );
     pulse.start();
     return () => pulse.stop();
   }, []);
 
-  // Fetch GPS every 3s
+  // Fetch GPS data every 3s
   useEffect(() => {
+    if (!serverIP) return;
+
     const fetchGPS = async () => {
       try {
-        const response = await fetch(`${RPI_API_URL}/gps`);
+        const response = await fetch(`${serverIP}/gps`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
 
@@ -67,22 +74,18 @@ const MapScreen: React.FC = () => {
       } catch (error) {
         console.error("GPS fetch error:", error);
         setIsOnline(false);
-        Alert.alert("Connection Error", "Unable to fetch GPS data from the bot.");
       }
     };
 
     fetchGPS();
     const interval = setInterval(fetchGPS, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [serverIP]);
 
   const handleRecenter = () => {
     if (mapRef.current) {
       mapRef.current.animateCamera({
-        center: {
-          latitude: botLocation.latitude,
-          longitude: botLocation.longitude,
-        },
+        center: { latitude: botLocation.latitude, longitude: botLocation.longitude },
         zoom: 17,
       }, { duration: 1000 });
     }
@@ -104,12 +107,7 @@ const MapScreen: React.FC = () => {
       <StatusBar barStyle="light-content" backgroundColor="#1a1a1a" />
 
       {/* Status Badge */}
-      <View
-        style={[
-          styles.statusBadge,
-          { backgroundColor: isOnline ? "#00C851" : "#ff4444" },
-        ]}
-      >
+      <View style={[styles.statusBadge, { backgroundColor: isOnline ? "#00C851" : "#ff4444" }]}>
         <MaterialIcons name={isOnline ? "wifi" : "wifi-off"} size={16} color="white" />
         <Text style={styles.statusText}>{isOnline ? "ONLINE" : "OFFLINE"}</Text>
       </View>
@@ -134,9 +132,7 @@ const MapScreen: React.FC = () => {
           strokeWidth={1}
         />
         <Marker coordinate={botLocation} anchor={{ x: 0.5, y: 0.5 }} flat={true}>
-          <Animated.View
-            style={[styles.markerContainer, { transform: [{ scale: pulseAnim }] }]}
-          >
+          <Animated.View style={[styles.markerContainer, { transform: [{ scale: pulseAnim }] }]}>
             <View style={styles.markerOuter}>
               <View style={styles.markerInner} />
             </View>
@@ -151,34 +147,22 @@ const MapScreen: React.FC = () => {
             <MaterialIcons name="gps-fixed" size={20} color="#007AFF" />
             <Text style={styles.panelTitle}>Bot Location</Text>
           </View>
-          <Text style={styles.coordinateText}>
-            Latitude: {botLocation.latitude.toFixed(6)}°
-          </Text>
-          <Text style={styles.coordinateText}>
-            Longitude: {botLocation.longitude.toFixed(6)}°
-          </Text>
-          <Text style={styles.lastUpdateText}>
-            Last update: {formatTime(lastUpdate)}
-          </Text>
+          <Text style={styles.coordinateText}>Latitude: {botLocation.latitude.toFixed(6)}°</Text>
+          <Text style={styles.coordinateText}>Longitude: {botLocation.longitude.toFixed(6)}°</Text>
+          <Text style={styles.lastUpdateText}>Last update: {formatTime(lastUpdate)}</Text>
         </View>
       )}
 
       {/* Right Side Buttons */}
       <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[styles.button, styles.toggleButton]}
-          onPress={toggleCoordinates}
-        >
+        <TouchableOpacity style={[styles.button, styles.toggleButton]} onPress={toggleCoordinates}>
           <MaterialIcons
             name={showCoordinates ? "visibility-off" : "visibility"}
             size={22}
             color="white"
           />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, styles.recenterButton]}
-          onPress={handleRecenter}
-        >
+        <TouchableOpacity style={[styles.button, styles.recenterButton]} onPress={handleRecenter}>
           <MaterialIcons name="my-location" size={24} color="white" />
         </TouchableOpacity>
       </View>
@@ -186,7 +170,7 @@ const MapScreen: React.FC = () => {
   );
 };
 
-// Map style
+// Map Style
 const mapStyle = [
   { elementType: "geometry", stylers: [{ color: "#212121" }] },
   { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
@@ -202,8 +186,6 @@ const mapStyle = [
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
   map: { flex: 1 },
-
-  // Status badge at top
   statusBadge: {
     position: "absolute",
     top: 40,
@@ -217,8 +199,6 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   statusText: { color: "white", fontSize: 12, fontWeight: "bold", marginLeft: 5 },
-
-  // Marker
   markerContainer: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   markerOuter: {
     width: 20,
@@ -231,8 +211,6 @@ const styles = StyleSheet.create({
     borderColor: "#007AFF",
   },
   markerInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#007AFF" },
-
-  // Coordinates Panel (Card Style)
   coordinatesPanel: {
     position: "absolute",
     bottom: 30,
@@ -242,17 +220,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     elevation: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
   },
   panelHeader: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
   panelTitle: { color: "white", fontSize: 15, fontWeight: "600", marginLeft: 6 },
   coordinateText: { color: "white", fontSize: 13, marginBottom: 2 },
   lastUpdateText: { color: "#aaa", fontSize: 11, marginTop: 4 },
-
-  // Right Side Buttons
   buttonContainer: {
     position: "absolute",
     right: 15,

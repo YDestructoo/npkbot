@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, Text, View, RefreshControl } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-
-const RPI_API_URL = "https://ydestructooo.pythonanywhere.com";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface SoilData {
   id: string;
@@ -16,41 +15,42 @@ interface SoilData {
 const DataPredictionScreen = () => {
   const [data, setData] = useState<SoilData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const getRecommendation = (nitrogen: number, phosphorus: number, potassium: number) => {
+  // ----- Recommendation Logic -----
+  const getRecommendation = (n: number, p: number, k: number) => {
     let rec: string[] = [];
-    if (nitrogen < 20) rec.push("Add Nitrogen-rich fertilizer (e.g., Urea)");
-    if (phosphorus < 15) rec.push("Add Phosphorus-rich fertilizer (e.g., DAP)");
-    if (potassium < 25) rec.push("Add Potassium-rich fertilizer (e.g., MOP)");
-    return rec.length === 0 ? "Soil is balanced. No fertilizer needed." : rec.join(". ");
+    if (n < 20) rec.push("Add Nitrogen-rich fertilizer (Urea)");
+    if (p < 15) rec.push("Add Phosphorus-rich fertilizer (DAP)");
+    if (k < 25) rec.push("Add Potassium-rich fertilizer (MOP)");
+    return rec.length ? rec.join(". ") : "Soil is balanced. No fertilizer needed.";
   };
 
+  // ----- Fetch Soil Data -----
   const fetchSoilData = async () => {
     try {
-      const response = await fetch(`${RPI_API_URL}/soil`);
-      if (!response.ok) throw new Error("No soil data available");
+      setLoading(true);
+      const baseURL = (await AsyncStorage.getItem("server_ip")) || "http://192.168.1.10:5000";
+      const response = await fetch(`${baseURL}/soil`);
+      if (!response.ok) throw new Error("Failed to fetch soil data");
 
       const soilData = await response.json();
-      const formattedData: SoilData[] = [
-        {
-          id: "1",
-          nitrogen: soilData.nitrogen,
-          phosphorus: soilData.phosphorus,
-          potassium: soilData.potassium,
-          recommendation: getRecommendation(
-            soilData.nitrogen,
-            soilData.phosphorus,
-            soilData.potassium
-          ),
-          timestamp: new Date().toLocaleString(),
-        },
-      ];
-      setData(formattedData);
+      const formatted: SoilData = {
+        id: Date.now().toString(),
+        nitrogen: soilData.nitrogen,
+        phosphorus: soilData.phosphorus,
+        potassium: soilData.potassium,
+        recommendation: getRecommendation(soilData.nitrogen, soilData.phosphorus, soilData.potassium),
+        timestamp: new Date().toLocaleString(),
+      };
+
+      setData(prev => [formatted, ...prev]); // Prepend new scan data
     } catch (error) {
       console.error("Error fetching soil data:", error);
       setData([]);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -58,6 +58,12 @@ const DataPredictionScreen = () => {
     fetchSoilData();
   }, []);
 
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchSoilData();
+  };
+
+  // ----- Render Card -----
   const renderItem = ({ item }: { item: SoilData }) => (
     <View style={styles.card}>
       <Text style={styles.timestamp}>📅 {item.timestamp}</Text>
@@ -87,7 +93,8 @@ const DataPredictionScreen = () => {
     </View>
   );
 
-  if (loading) {
+  // ----- Loading Screen -----
+  if (loading && !refreshing) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2e86de" />
@@ -96,6 +103,7 @@ const DataPredictionScreen = () => {
     );
   }
 
+  // ----- Main UI -----
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Fertilizer Recommendations</Text>
@@ -105,6 +113,9 @@ const DataPredictionScreen = () => {
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#2e86de"]} />
+          }
         />
       ) : (
         <Text style={styles.noDataText}>No soil data available. Please scan first.</Text>
@@ -113,13 +124,21 @@ const DataPredictionScreen = () => {
   );
 };
 
+export default DataPredictionScreen;
+
 const styles = StyleSheet.create({
+  // ----- Layout Containers -----
   container: {
     flex: 1,
     backgroundColor: "#f5f6fa",
     paddingHorizontal: 20,
     paddingTop: 40,
   },
+  listContent: {
+    paddingBottom: 20,
+  },
+
+  // ----- Titles & Text -----
   title: {
     fontSize: 26,
     fontWeight: "bold",
@@ -127,6 +146,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: "center",
   },
+  noDataText: {
+    textAlign: "center",
+    color: "#636e72",
+    marginTop: 20,
+    fontSize: 16,
+  },
+
+  // ----- Loading -----
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -137,15 +164,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#636e72",
   },
-  noDataText: {
-    textAlign: "center",
-    color: "#636e72",
-    marginTop: 20,
-    fontSize: 16,
-  },
-  listContent: {
-    paddingBottom: 20,
-  },
+
+  // ----- Card Styling -----
   card: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -164,6 +184,8 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     textAlign: "right",
   },
+
+  // ----- Data Rows -----
   dataRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -182,6 +204,8 @@ const styles = StyleSheet.create({
     color: "#2d3436",
     fontWeight: "500",
   },
+
+  // ----- Recommendations -----
   recommendationContainer: {
     marginTop: 14,
     borderTopWidth: 1,
@@ -200,5 +224,3 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 });
-
-export default DataPredictionScreen;
