@@ -1,99 +1,275 @@
+import { MaterialIcons } from "@expo/vector-icons";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  Animated,
+  StatusBar,
+} from "react-native";
+import MapView, { Marker, PROVIDER_GOOGLE, Circle } from "react-native-maps";
 
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+const RPI_API_URL = "https://ydestructooo.pythonanywhere.com";
 
-const MapScreen = () => {
+const MapScreen: React.FC = () => {
   const [botLocation, setBotLocation] = useState({
     latitude: 37.78825,
     longitude: -122.4324,
-    latitudeDelta: 0.0922,
-    longitudeDelta: 0.0421,
+    latitudeDelta: 0.01,
+    longitudeDelta: 0.01,
   });
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Simulate a small, random movement for the bot.
-      setBotLocation(currentLocation => ({
-        ...currentLocation,
-        latitude: currentLocation.latitude + (Math.random() - 0.5) * 0.0005,
-        longitude: currentLocation.longitude + (Math.random() - 0.5) * 0.0005,
-      }));
-    }, 3000); // Updates every 3 seconds
+  const [isOnline, setIsOnline] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [showCoordinates, setShowCoordinates] = useState(true);
 
-    // Clean up the interval when the component unmounts to prevent memory leaks.
+  const mapRef = useRef<MapView>(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Pulse animation
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.2,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, []);
+
+  // Fetch GPS every 3s
+  useEffect(() => {
+    const fetchGPS = async () => {
+      try {
+        const response = await fetch(`${RPI_API_URL}/gps`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        setBotLocation((current) => ({
+          ...current,
+          latitude: data.latitude,
+          longitude: data.longitude,
+        }));
+
+        setIsOnline(true);
+        setLastUpdate(new Date());
+      } catch (error) {
+        console.error("GPS fetch error:", error);
+        setIsOnline(false);
+        Alert.alert("Connection Error", "Unable to fetch GPS data from the bot.");
+      }
+    };
+
+    fetchGPS();
+    const interval = setInterval(fetchGPS, 3000);
     return () => clearInterval(interval);
-  }, []); // The empty dependency array ensures this runs only once on mount.
+  }, []);
+
+  const handleRecenter = () => {
+    if (mapRef.current) {
+      mapRef.current.animateCamera({
+        center: {
+          latitude: botLocation.latitude,
+          longitude: botLocation.longitude,
+        },
+        zoom: 17,
+      }, { duration: 1000 });
+    }
+  };
+
+  const toggleCoordinates = () => setShowCoordinates(!showCoordinates);
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString("en-US", {
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  };
 
   return (
-    // The main container for the map.
     <View style={styles.container}>
-      {/* MapView is the primary component for displaying the map.
-        - provider={PROVIDER_GOOGLE} is recommended for a consistent look and feel on Android.
-        - initialRegion sets the initial visible area of the map.
-        - style makes the map fill the entire screen.
-      */}
+      <StatusBar barStyle="light-content" backgroundColor="#1a1a1a" />
+
+      {/* Status Badge */}
+      <View
+        style={[
+          styles.statusBadge,
+          { backgroundColor: isOnline ? "#00C851" : "#ff4444" },
+        ]}
+      >
+        <MaterialIcons name={isOnline ? "wifi" : "wifi-off"} size={16} color="white" />
+        <Text style={styles.statusText}>{isOnline ? "ONLINE" : "OFFLINE"}</Text>
+      </View>
+
+      {/* Map */}
       <MapView
+        ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={botLocation}
+        customMapStyle={mapStyle}
+        showsUserLocation={false}
+        showsMyLocationButton={false}
+        showsCompass={false}
+        toolbarEnabled={false}
       >
-        {/* The Marker component displays a pin on the map.
-          - coordinate specifies its exact GPS location.
-          - title provides a label when the user taps on the pin.
-          - description provides a subtitle for the pin.
-        */}
-        <Marker
-          coordinate={{
-            latitude: botLocation.latitude,
-            longitude: botLocation.longitude,
-          }}
-          title="NPK-BOT Location"
-          description={`Lat: ${botLocation.latitude.toFixed(4)}, Lon: ${botLocation.longitude.toFixed(4)}`}
+        <Circle
+          center={botLocation}
+          radius={10}
+          fillColor="rgba(0, 122, 255, 0.1)"
+          strokeColor="rgba(0, 122, 255, 0.3)"
+          strokeWidth={1}
         />
+        <Marker coordinate={botLocation} anchor={{ x: 0.5, y: 0.5 }} flat={true}>
+          <Animated.View
+            style={[styles.markerContainer, { transform: [{ scale: pulseAnim }] }]}
+          >
+            <View style={styles.markerOuter}>
+              <View style={styles.markerInner} />
+            </View>
+          </Animated.View>
+        </Marker>
       </MapView>
 
-      {/* This View acts as an overlay to display the current coordinates.
-        This is useful for debugging and can be removed later.
-      */}
-      <View style={styles.coordinatesOverlay}>
-        <Text style={styles.overlayText}>
-          Bot Location:
-        </Text>
-        <Text style={styles.overlayText}>
-          Lat: {botLocation.latitude.toFixed(5)}
-        </Text>
-        <Text style={styles.overlayText}>
-          Lon: {botLocation.longitude.toFixed(5)}
-        </Text>
+      {/* Coordinates Panel */}
+      {showCoordinates && (
+        <View style={styles.coordinatesPanel}>
+          <View style={styles.panelHeader}>
+            <MaterialIcons name="gps-fixed" size={20} color="#007AFF" />
+            <Text style={styles.panelTitle}>Bot Location</Text>
+          </View>
+          <Text style={styles.coordinateText}>
+            Latitude: {botLocation.latitude.toFixed(6)}°
+          </Text>
+          <Text style={styles.coordinateText}>
+            Longitude: {botLocation.longitude.toFixed(6)}°
+          </Text>
+          <Text style={styles.lastUpdateText}>
+            Last update: {formatTime(lastUpdate)}
+          </Text>
+        </View>
+      )}
+
+      {/* Right Side Buttons */}
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[styles.button, styles.toggleButton]}
+          onPress={toggleCoordinates}
+        >
+          <MaterialIcons
+            name={showCoordinates ? "visibility-off" : "visibility"}
+            size={22}
+            color="white"
+          />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, styles.recenterButton]}
+          onPress={handleRecenter}
+        >
+          <MaterialIcons name="my-location" size={24} color="white" />
+        </TouchableOpacity>
       </View>
     </View>
   );
 };
 
+// Map style
+const mapStyle = [
+  { elementType: "geometry", stylers: [{ color: "#212121" }] },
+  { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#212121" }] },
+  { featureType: "administrative", elementType: "geometry", stylers: [{ color: "#757575" }] },
+  { featureType: "road", elementType: "geometry.fill", stylers: [{ color: "#2c2c2c" }] },
+  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#8a8a8a" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#000000" }] },
+];
+
+// Styles
 const styles = StyleSheet.create({
-  container: {
-    ...StyleSheet.absoluteFillObject, // Makes the container fill the parent View.
-    justifyContent: 'flex-end',
-    alignItems: 'center',
+  container: { flex: 1, backgroundColor: "#000" },
+  map: { flex: 1 },
+
+  // Status badge at top
+  statusBadge: {
+    position: "absolute",
+    top: 40,
+    left: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 15,
+    zIndex: 10,
+    elevation: 5,
   },
-  map: {
-    ...StyleSheet.absoluteFillObject, // Makes the map fill the container.
+  statusText: { color: "white", fontSize: 12, fontWeight: "bold", marginLeft: 5 },
+
+  // Marker
+  markerContainer: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  markerOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(0,122,255,0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#007AFF",
   },
-  coordinatesOverlay: {
-    position: 'absolute',
-    bottom: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 8,
-    padding: 10,
-    margin: 10,
-    alignItems: 'center',
+  markerInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#007AFF" },
+
+  // Coordinates Panel (Card Style)
+  coordinatesPanel: {
+    position: "absolute",
+    bottom: 30,
+    left: 15,
+    right: 15,
+    backgroundColor: "rgba(26,26,26,0.95)",
+    borderRadius: 14,
+    padding: 14,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
   },
-  overlayText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
+  panelHeader: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
+  panelTitle: { color: "white", fontSize: 15, fontWeight: "600", marginLeft: 6 },
+  coordinateText: { color: "white", fontSize: 13, marginBottom: 2 },
+  lastUpdateText: { color: "#aaa", fontSize: 11, marginTop: 4 },
+
+  // Right Side Buttons
+  buttonContainer: {
+    position: "absolute",
+    right: 15,
+    bottom: 160,
+    alignItems: "center",
   },
+  button: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+    elevation: 5,
+  },
+  toggleButton: { backgroundColor: "rgba(0, 0, 0, 0.7)" },
+  recenterButton: { backgroundColor: "#007AFF" },
 });
 
 export default MapScreen;
