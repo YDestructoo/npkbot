@@ -10,6 +10,8 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import LiveCamera from "../../components/LiveCamera";
 
 export default function ScreenController() {
   const [serverIP, setServerIP] = useState<string | null>(null);
@@ -18,6 +20,8 @@ export default function ScreenController() {
   const [isSending, setIsSending] = useState(false);
   const [isProbeScanning, setIsProbeScanning] = useState(false);
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
+
+  const router = useRouter();
 
   // Load IP on start
   useEffect(() => {
@@ -134,15 +138,28 @@ export default function ScreenController() {
         </Text>
       </View>
 
-      {/* Live Camera Feed */}
-      <View style={styles.cameraCard}>
-        <View style={styles.cameraFeedContainer}>
-          <Text style={styles.cameraFeedText}>Live Camera Feed</Text>
-          <View style={styles.liveBadge}>
-            <Text style={styles.liveBadgeText}>LIVE</Text>
-          </View>
-        </View>
-      </View>
+      {/* Camera Feed with Fullscreen */}
+      {serverIP && (
+        <LiveCamera
+          serverIP={serverIP}
+          onFullscreen={() => router.push("/fullscreen-camera")}
+          onMove={(dir) => {
+            if (dir === "stop") {
+              handleDirectionRelease();
+            } else {
+              const commandMap: Record<string, string> = {
+                up: "forward",
+                down: "backward",
+                left: "left",
+                right: "right",
+              };
+              handleDirectionPress(dir, commandMap[dir]);
+            }
+          }}
+          onSoilScan={handleProbeScan}
+          onCapture={() => Alert.alert("Picture", "Capture feature coming soon")}
+        />
+      )}
 
       {/* Control Panel */}
       <View style={styles.controlPanel}>
@@ -203,7 +220,6 @@ const styles = StyleSheet.create({
     borderBottomColor: "#e2e8f0",
   },
   headerTitle: { fontSize: 22, fontWeight: "700", color: "#1e293b" },
-
   editContainer: {
     flexDirection: "row",
     padding: 10,
@@ -231,38 +247,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   saveButtonText: { color: "#fff", fontWeight: "600" },
-
-  cameraCard: {
-    margin: 20,
-    marginBottom: 16,
-    borderRadius: 12,
-    backgroundColor: "#ffffff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  cameraFeedContainer: {
-    aspectRatio: 16 / 9,
-    backgroundColor: "#0f172a",
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 12,
-    position: "relative",
-  },
-  cameraFeedText: { color: "#94a3b8", fontSize: 18, fontWeight: "500" },
-  liveBadge: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    backgroundColor: "#ef4444",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  liveBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
-
   statusBar: {
     padding: 12,
     flexDirection: "row",
@@ -272,7 +256,6 @@ const styles = StyleSheet.create({
     borderBottomColor: "#e2e8f0",
   },
   statusBarText: { fontSize: 14, color: "#475569", fontWeight: "500" },
-
   controlPanel: { flex: 1, padding: 20, gap: 16 },
   controlCard: {
     backgroundColor: "#fff",
@@ -283,7 +266,6 @@ const styles = StyleSheet.create({
     borderColor: "#f1f5f9",
   },
   cardTitle: { fontSize: 18, fontWeight: "600", color: "#1e293b", marginBottom: 20 },
-
   dPad: {
     width: 200,
     height: 200,
@@ -308,7 +290,6 @@ const styles = StyleSheet.create({
   dPadButtonRight: { right: 20 },
   dPadCenter: { width: 48, height: 48, backgroundColor: "#e2e8f0", borderRadius: 6 },
   dPadText: { color: "#fff", fontSize: 20, fontWeight: "700" },
-
   soilScanButton: {
     backgroundColor: "#22c55e",
     paddingVertical: 16,

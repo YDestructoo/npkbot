@@ -16,8 +16,18 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
-      
+      "edgeToEdgeEnabled": true,
+      "package": "com.npkbot",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "INTERNET"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCYgTEHDaBoJqJ6Vnw7nQGe--WyNnEnqE0"
+        }
+      }
     },
     "web": {
       "bundler": "metro",
@@ -38,6 +48,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7718ed4d-1db3-4e72-a03c-7e38d90048d8"
+      }
     }
   }
 }
