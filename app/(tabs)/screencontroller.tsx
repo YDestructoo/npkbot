@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from "react";
+import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   SafeAreaView,
@@ -8,9 +11,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import LiveCamera from "../../components/LiveCamera";
 
 export default function ScreenController() {
@@ -142,7 +142,8 @@ export default function ScreenController() {
       {serverIP && (
         <LiveCamera
           serverIP={serverIP}
-          onFullscreen={() => router.push("/fullscreen-camera")}
+          onFullscreen={() => router.push({ pathname: "../fullscreen-camera" as const, params: { serverIP } })}
+
           onMove={(dir) => {
             if (dir === "stop") {
               handleDirectionRelease();
