@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useRouter, useFocusEffect } from "expo-router";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Alert,
   SafeAreaView,
@@ -20,6 +20,7 @@ export default function ScreenController() {
   const [isSending, setIsSending] = useState(false);
   const [isProbeScanning, setIsProbeScanning] = useState(false);
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const router = useRouter();
 
@@ -36,6 +37,12 @@ export default function ScreenController() {
     };
     loadIP();
   }, []);
+
+  useFocusEffect(
+  useCallback(() => {
+    setReloadKey(prev => prev + 1); // forces WebView to reload
+  }, [])
+  );
 
   // Save new IP
   const saveIP = async () => {
@@ -143,7 +150,7 @@ export default function ScreenController() {
         <LiveCamera
           serverIP={serverIP}
           onFullscreen={() => router.push({ pathname: "../fullscreen-camera" as const, params: { serverIP } })}
-
+          key={reloadKey}
           onMove={(dir) => {
             if (dir === "stop") {
               handleDirectionRelease();
